@@ -1,0 +1,176 @@
+from pydantic import BaseModel, EmailStr, Field
+from typing import Optional, List
+from datetime import datetime
+from enum import Enum
+
+# ============================================
+# ENUMS
+# ============================================
+
+class UserRole(str, Enum):
+    ADMIN = "admin"
+    USER = "user"
+
+class FamilyRole(str, Enum):
+    ADMIN = "admin"
+    EDITOR = "editor"
+    VIEWER = "viewer"
+
+class Gender(str, Enum):
+    MALE = "male"
+    FEMALE = "female"
+    OTHER = "other"
+
+class SubscriptionPlan(str, Enum):
+    FREE = "free"
+    BASIC = "basic"
+    PREMIUM = "premium"
+
+class TicketStatus(str, Enum):
+    OPEN = "open"
+    IN_PROGRESS = "in_progress"
+    RESOLVED = "resolved"
+    CLOSED = "closed"
+
+class TicketPriority(str, Enum):
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    URGENT = "urgent"
+
+# ============================================
+# USER MODELS
+# ============================================
+
+class UserCreate(BaseModel):
+    email: EmailStr
+    password: str
+    full_name: str
+
+class UserLogin(BaseModel):
+    email: EmailStr
+    password: str
+
+class UserResponse(BaseModel):
+    id: str = Field(alias="_id")
+    email: str
+    full_name: str
+    role: UserRole = UserRole.USER
+    created_at: datetime
+    
+    class Config:
+        populate_by_name = True
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
+# ============================================
+# FAMILY MODELS
+# ============================================
+
+class FamilyCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+
+class FamilyUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+
+class FamilyResponse(BaseModel):
+    id: str = Field(alias="_id")
+    name: str
+    description: Optional[str] = None
+    created_by: str
+    created_at: datetime
+    join_code: str
+    subscription_plan: SubscriptionPlan = SubscriptionPlan.FREE
+    person_count: int = 0
+    person_limit: int = 50
+    
+    class Config:
+        populate_by_name = True
+
+# ============================================
+# PERSON MODELS
+# ============================================
+
+class PersonCreate(BaseModel):
+    family_id: str
+    first_name: str
+    middle_name: Optional[str] = None
+    last_name: str
+    nickname: Optional[str] = None
+    gender: Optional[Gender] = None
+    birth_date: Optional[str] = None
+    death_date: Optional[str] = None
+    birth_place: Optional[str] = None
+    bio: Optional[str] = None
+    profile_image_url: Optional[str] = None
+    facebook_url: Optional[str] = None
+    is_deceased: bool = False
+
+class PersonUpdate(BaseModel):
+    first_name: Optional[str] = None
+    middle_name: Optional[str] = None
+    last_name: Optional[str] = None
+    nickname: Optional[str] = None
+    gender: Optional[Gender] = None
+    birth_date: Optional[str] = None
+    death_date: Optional[str] = None
+    birth_place: Optional[str] = None
+    bio: Optional[str] = None
+    profile_image_url: Optional[str] = None
+    facebook_url: Optional[str] = None
+    is_deceased: Optional[bool] = None
+
+class PersonResponse(BaseModel):
+    id: str = Field(alias="_id")
+    family_id: str
+    first_name: str
+    middle_name: Optional[str] = None
+    last_name: str
+    nickname: Optional[str] = None
+    gender: Optional[Gender] = None
+    birth_date: Optional[str] = None
+    death_date: Optional[str] = None
+    birth_place: Optional[str] = None
+    bio: Optional[str] = None
+    profile_image_url: Optional[str] = None
+    facebook_url: Optional[str] = None
+    is_deceased: bool = False
+    generation_level: int = 0
+    created_at: datetime
+    updated_at: datetime
+    
+    class Config:
+        populate_by_name = True
+
+# ============================================
+# SUPPORT TICKET MODELS
+# ============================================
+
+class TicketCreate(BaseModel):
+    family_id: str
+    title: str
+    description: str
+    type: str  # "bug" or "feature"
+    priority: TicketPriority = TicketPriority.MEDIUM
+    screenshot_url: Optional[str] = None
+
+class TicketResponse(BaseModel):
+    id: str = Field(alias="_id")
+    family_id: str
+    user_id: str
+    title: str
+    description: str
+    type: str
+    status: TicketStatus = TicketStatus.OPEN
+    priority: TicketPriority
+    screenshot_url: Optional[str] = None
+    reward_slots: int = 0
+    created_at: datetime
+    updated_at: datetime
+    
+    class Config:
+        populate_by_name = True
