@@ -159,6 +159,7 @@ npx cap open android
 
 ## 📚 Documentation
 
+- **[DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md)** - 🚀 Complete deployment guide (Local + Live)
 - **[MIGRATION_PLAN.md](./MIGRATION_PLAN.md)** - Complete migration strategy from WordPress
 - **[IMPLEMENTATION_GUIDE.md](./IMPLEMENTATION_GUIDE.md)** - Step-by-step implementation with code
 - **[XAMPP_SETUP_GUIDE.md](./XAMPP_SETUP_GUIDE.md)** - Localhost development with XAMPP
