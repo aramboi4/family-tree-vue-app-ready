@@ -1017,6 +1017,206 @@ async def delete_person(person_id: str, current_user: dict = Depends(get_current
     return None
 
 # ============================================
+
+
+# ============================================
+# SUPPORT TICKET ENDPOINTS
+# ============================================
+
+@app.post("/api/tickets", status_code=status.HTTP_201_CREATED)
+async def create_ticket(
+    ticket_data: TicketCreate,
+    current_user: dict = Depends(get_current_user)
+):
+    """Create a support ticket"""
+    db = get_db()
+    
+    # Verify user is member of family
+    await check_family_membership(current_user["_id"], ticket_data.family_id)
+    
+    ticket_id = ObjectId()
+    now = datetime.now(timezone.utc)
+    
+    new_ticket = {
+        "_id": ticket_id,
+        "user_id": ObjectId(current_user["_id"]),
+        "family_id": ObjectId(ticket_data.family_id),
+        "ticket_type": ticket_data.ticket_type,
+        "title": ticket_data.title,
+        "description": ticket_data.description,
+        "screenshot_url": ticket_data.screenshot_url,
+        "status": TicketStatus.PENDING,
+        "priority": TicketPriority.MEDIUM,
+        "reward_slots": 0,
+        "is_rewarded": False,
+        "admin_notes": None,
+        "reviewed_by": None,
+        "reviewed_at": None,
+        "created_at": now,
+        "updated_at": now
+    }
+    
+    await db.support_tickets.insert_one(new_ticket)
+    
+    return {
+        "_id": str(ticket_id),
+        "user_id": str(current_user["_id"]),
+        "family_id": ticket_data.family_id,
+        "ticket_type": ticket_data.ticket_type,
+        "title": ticket_data.title,
+        "description": ticket_data.description,
+        "screenshot_url": ticket_data.screenshot_url,
+        "status": TicketStatus.PENDING,
+        "priority": TicketPriority.MEDIUM,
+        "reward_slots": 0,
+        "is_rewarded": False,
+        "created_at": now,
+        "updated_at": now,
+        "user_email": current_user["email"],
+        "user_name": current_user["full_name"]
+    }
+
+@app.get("/api/tickets")
+async def list_tickets(current_user: dict = Depends(get_current_user)):
+    """List user's tickets"""
+    db = get_db()
+    
+    # If admin, show all tickets; otherwise show only user's tickets
+    if current_user.get("role") == UserRole.ADMIN:
+        tickets = await db.support_tickets.find().sort("created_at", -1).to_list(100)
+    else:
+        tickets = await db.support_tickets.find({
+            "user_id": ObjectId(current_user["_id"])
+        }).sort("created_at", -1).to_list(100)
+    
+    result = []
+    for ticket in tickets:
+        user = await db.users.find_one({"_id": ticket["user_id"]}, {"password_hash": 0})
+        result.append({
+            "_id": str(ticket["_id"]),
+            "user_id": str(ticket["user_id"]),
+            "family_id": str(ticket["family_id"]),
+            "ticket_type": ticket["ticket_type"],
+            "title": ticket["title"],
+            "description": ticket["description"],
+            "screenshot_url": ticket.get("screenshot_url"),
+            "status": ticket["status"],
+            "priority": ticket["priority"],
+            "reward_slots": ticket["reward_slots"],
+            "is_rewarded": ticket["is_rewarded"],
+            "admin_notes": ticket.get("admin_notes"),
+            "reviewed_by": str(ticket["reviewed_by"]) if ticket.get("reviewed_by") else None,
+            "reviewed_at": ticket.get("reviewed_at"),
+            "created_at": ticket["created_at"],
+            "updated_at": ticket["updated_at"],
+            "user_email": user.get("email") if user else None,
+            "user_name": user.get("full_name") if user else None
+        })
+    
+    return result
+
+@app.get("/api/tickets/{ticket_id}")
+async def get_ticket(ticket_id: str, current_user: dict = Depends(get_current_user)):
+    """Get ticket details"""
+    db = get_db()
+    
+    ticket = await db.support_tickets.find_one({"_id": ObjectId(ticket_id)})
+    if not ticket:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Ticket not found"
+        )
+    
+    # Check permissions (admin or ticket owner)
+    if current_user.get("role") != UserRole.ADMIN and str(ticket["user_id"]) != current_user["_id"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to view this ticket"
+        )
+    
+    user = await db.users.find_one({"_id": ticket["user_id"]}, {"password_hash": 0})
+    
+    return {
+        "_id": str(ticket["_id"]),
+        "user_id": str(ticket["user_id"]),
+        "family_id": str(ticket["family_id"]),
+        "ticket_type": ticket["ticket_type"],
+        "title": ticket["title"],
+        "description": ticket["description"],
+        "screenshot_url": ticket.get("screenshot_url"),
+        "status": ticket["status"],
+        "priority": ticket["priority"],
+        "reward_slots": ticket["reward_slots"],
+        "is_rewarded": ticket["is_rewarded"],
+        "admin_notes": ticket.get("admin_notes"),
+        "reviewed_by": str(ticket["reviewed_by"]) if ticket.get("reviewed_by") else None,
+        "reviewed_at": ticket.get("reviewed_at"),
+        "created_at": ticket["created_at"],
+        "updated_at": ticket["updated_at"],
+        "user_email": user.get("email") if user else None,
+        "user_name": user.get("full_name") if user else None
+    }
+
+@app.put("/api/tickets/{ticket_id}")
+async def update_ticket(
+    ticket_id: str,
+    ticket_update: TicketUpdate,
+    current_user: dict = Depends(get_current_user)
+):
+    """Update ticket (Admin only for review)"""
+    db = get_db()
+    
+    # Only admins can update tickets
+    if current_user.get("role") != UserRole.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin role required"
+        )
+    
+    ticket = await db.support_tickets.find_one({"_id": ObjectId(ticket_id)})
+    if not ticket:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Ticket not found"
+        )
+    
+    update_fields = {"updated_at": datetime.now(timezone.utc)}
+    
+    if ticket_update.status:
+        update_fields["status"] = ticket_update.status
+        update_fields["reviewed_by"] = ObjectId(current_user["_id"])
+        update_fields["reviewed_at"] = datetime.now(timezone.utc)
+    
+    if ticket_update.priority:
+        update_fields["priority"] = ticket_update.priority
+    
+    if ticket_update.admin_notes:
+        update_fields["admin_notes"] = ticket_update.admin_notes
+    
+    # Handle reward slots
+    if ticket_update.reward_slots is not None:
+        if not (1 <= ticket_update.reward_slots <= 15):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Reward slots must be between 1 and 15"
+            )
+        
+        update_fields["reward_slots"] = ticket_update.reward_slots
+        update_fields["is_rewarded"] = True
+        
+        # Add slots to family's person_limit
+        await db.families.update_one(
+            {"_id": ticket["family_id"]},
+            {"$inc": {"person_limit": ticket_update.reward_slots}}
+        )
+    
+    await db.support_tickets.update_one(
+        {"_id": ObjectId(ticket_id)},
+        {"$set": update_fields}
+    )
+    
+    return await get_ticket(ticket_id, current_user)
+
 # RUN APP
 # ============================================
 

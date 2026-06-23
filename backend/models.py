@@ -26,17 +26,63 @@ class SubscriptionPlan(str, Enum):
     BASIC = "basic"
     PREMIUM = "premium"
 
+# ============================================
+# SUPPORT TICKET MODELS
+# ============================================
+
+class TicketType(str, Enum):
+    FEATURE = "feature"
+    BUG = "bug"
+    ISSUE = "issue"
+
 class TicketStatus(str, Enum):
-    OPEN = "open"
-    IN_PROGRESS = "in_progress"
+    PENDING = "pending"
+    REVIEWING = "reviewing"
+    APPROVED = "approved"
+    REJECTED = "rejected"
     RESOLVED = "resolved"
-    CLOSED = "closed"
 
 class TicketPriority(str, Enum):
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
-    URGENT = "urgent"
+    CRITICAL = "critical"
+
+class TicketCreate(BaseModel):
+    family_id: str
+    ticket_type: TicketType
+    title: str
+    description: str
+    screenshot_url: Optional[str] = None
+
+class TicketUpdate(BaseModel):
+    status: Optional[TicketStatus] = None
+    priority: Optional[TicketPriority] = None
+    reward_slots: Optional[int] = None
+    admin_notes: Optional[str] = None
+
+class TicketResponse(BaseModel):
+    id: str = Field(alias="_id")
+    user_id: str
+    family_id: str
+    ticket_type: TicketType
+    title: str
+    description: str
+    screenshot_url: Optional[str] = None
+    status: TicketStatus = TicketStatus.PENDING
+    priority: TicketPriority = TicketPriority.MEDIUM
+    reward_slots: int = 0
+    is_rewarded: bool = False
+    admin_notes: Optional[str] = None
+    reviewed_by: Optional[str] = None
+    reviewed_at: Optional[datetime] = None
+    created_at: datetime
+    updated_at: datetime
+    user_email: Optional[str] = None
+    user_name: Optional[str] = None
+    
+    class Config:
+        populate_by_name = True
 
 # ============================================
 # USER MODELS
@@ -145,37 +191,6 @@ class PersonResponse(BaseModel):
     
     class Config:
         populate_by_name = True
-
-# ============================================
-# SUPPORT TICKET MODELS
-# ============================================
-
-class TicketCreate(BaseModel):
-    family_id: str
-    title: str
-    description: str
-    type: str  # "bug" or "feature"
-    priority: TicketPriority = TicketPriority.MEDIUM
-    screenshot_url: Optional[str] = None
-
-class TicketResponse(BaseModel):
-    id: str = Field(alias="_id")
-    family_id: str
-    user_id: str
-    title: str
-    description: str
-    type: str
-    status: TicketStatus = TicketStatus.OPEN
-    priority: TicketPriority
-    screenshot_url: Optional[str] = None
-    reward_slots: int = 0
-    created_at: datetime
-    updated_at: datetime
-    
-    class Config:
-        populate_by_name = True
-
-
 
 # ============================================
 # MEMBER MANAGEMENT MODELS
