@@ -159,6 +159,7 @@ npx cap open android
 
 ## 📚 Documentation
 
+- **[RBAC_GUIDE.md](./RBAC_GUIDE.md)** - 🔐 Role-based access control (Admin/Editor/Viewer permissions)
 - **[DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md)** - 🚀 Complete deployment guide (Local + Live)
 - **[PAYMENT_INTEGRATION_GUIDE.md](./PAYMENT_INTEGRATION_GUIDE.md)** - 💳 Philippine payment methods (GCash, Maya, Cards)
 - **[MIGRATION_PLAN.md](./MIGRATION_PLAN.md)** - Complete migration strategy from WordPress
