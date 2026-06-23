@@ -11,7 +11,7 @@ A modern, cross-platform family tree application migrated from WordPress to Vue.
 - 💑 **Relationship Mapping** - Parent-child, spouse relationships
 - 🌲 **Interactive Tree Visualization** - Zoom, pan, search, multiple themes
 - 📄 **PDF Export** - 5 templates, multiple sizes, watermark control
-- 💰 **Subscription System** - 5 plans (Free → Elite) with person limits
+- 💰 **Subscription System** - **Family-based plans** (Free → Elite) | GCash, Maya, Cards
 - 📧 **Invitation System** - Email invitations and join codes
 - 📊 **Activity Logging** - Track all changes
 - 🔌 **REST API** - Full API access for integrations
@@ -160,6 +160,7 @@ npx cap open android
 ## 📚 Documentation
 
 - **[DEPLOYMENT_GUIDE.md](./DEPLOYMENT_GUIDE.md)** - 🚀 Complete deployment guide (Local + Live)
+- **[PAYMENT_INTEGRATION_GUIDE.md](./PAYMENT_INTEGRATION_GUIDE.md)** - 💳 Philippine payment methods (GCash, Maya, Cards)
 - **[MIGRATION_PLAN.md](./MIGRATION_PLAN.md)** - Complete migration strategy from WordPress
 - **[IMPLEMENTATION_GUIDE.md](./IMPLEMENTATION_GUIDE.md)** - Step-by-step implementation with code
 - **[XAMPP_SETUP_GUIDE.md](./XAMPP_SETUP_GUIDE.md)** - Localhost development with XAMPP
