@@ -80,9 +80,9 @@ memory/test_credentials.md
 
 # Mobile development
 android-sdk/
-.env
-.env.*
-*.env
 credentials.json
 *.key
 .credentials
+
+# Note: .env files are intentionally tracked for deployment
+# Ensure no sensitive data in .env files committed to public repos
