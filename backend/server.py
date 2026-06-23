@@ -876,6 +876,10 @@ async def create_person(person_data: PersonCreate, current_user: dict = Depends(
         "profile_image_url": person_data.profile_image_url,
         "facebook_url": person_data.facebook_url,
         "is_deceased": person_data.is_deceased,
+        "photo_gallery": person_data.photo_gallery if person_data.photo_gallery else [],
+        "father_id": person_data.father_id,
+        "mother_id": person_data.mother_id,
+        "spouse_ids": person_data.spouse_ids if person_data.spouse_ids else [],
         "generation_level": 0,
         "created_at": now,
         "updated_at": now
@@ -1217,6 +1221,368 @@ async def update_ticket(
     
     return await get_ticket(ticket_id, current_user)
 
+
+
+# ============================================
+# PDF EXPORT ENDPOINTS
+# ============================================
+
+@app.get("/api/families/{family_id}/export/pdf")
+async def export_family_tree_pdf(
+    family_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Export family tree as PDF (Admin or Editor only)"""
+    from fastapi.responses import StreamingResponse
+    from pdf_generator import generate_family_tree_pdf
+    
+    db = get_db()
+    
+    # Check if user has permission (Admin or Editor)
+    role = await get_user_role_in_family(current_user["_id"], family_id)
+    if role not in [FamilyRole.ADMIN, FamilyRole.EDITOR]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin or Editor role required to export PDF"
+        )
+    
+    # Get family data
+    family = await db.families.find_one({"_id": ObjectId(family_id)})
+    if not family:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Family not found"
+        )
+    
+    # Get all persons
+    persons = await db.persons.find({"family_id": ObjectId(family_id)}).to_list(1000)
+    
+    # Convert ObjectIds to strings for PDF generator
+    family_data = {
+        "_id": str(family["_id"]),
+        "name": family["name"],
+        "description": family.get("description", ""),
+        "created_at": family["created_at"].isoformat() if isinstance(family["created_at"], datetime) else str(family["created_at"]),
+        "person_count": family.get("person_count", len(persons)),
+        "subscription_plan": family.get("subscription_plan", "free"),
+        "person_limit": family.get("person_limit", 50),
+        "join_code": family.get("join_code", "")
+    }
+    
+    persons_data = []
+    for person in persons:
+        persons_data.append({
+            "first_name": person.get("first_name", ""),
+            "middle_name": person.get("middle_name"),
+            "last_name": person.get("last_name", ""),
+            "nickname": person.get("nickname"),
+            "gender": person.get("gender"),
+            "birth_date": person.get("birth_date"),
+            "death_date": person.get("death_date"),
+            "birth_place": person.get("birth_place"),
+            "bio": person.get("bio"),
+            "is_deceased": person.get("is_deceased", False),
+            "generation_level": person.get("generation_level", 0)
+        })
+    
+    # Generate PDF
+    pdf_buffer = generate_family_tree_pdf(family_data, persons_data)
+    
+    # Return as streaming response
+    filename = f"{family['name'].replace(' ', '_')}_FamilyTree.pdf"
+
+
+# ============================================
+# PHOTO GALLERY ENDPOINTS
+# ============================================
+
+class PhotoAdd(BaseModel):
+    photo_url: str
+
+@app.post("/api/persons/{person_id}/photos")
+async def add_photo_to_gallery(
+    person_id: str,
+    photo_data: PhotoAdd,
+    current_user: dict = Depends(get_current_user)
+):
+    """Add photo to person's gallery (Admin or Editor only)"""
+    db = get_db()
+    
+    person = await db.persons.find_one({"_id": ObjectId(person_id)})
+    if not person:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Person not found"
+        )
+    
+    # Check permission
+    role = await get_user_role_in_family(current_user["_id"], str(person["family_id"]))
+    if role not in [FamilyRole.ADMIN, FamilyRole.EDITOR]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin or Editor role required"
+        )
+    
+    # Add photo to gallery
+    await db.persons.update_one(
+        {"_id": ObjectId(person_id)},
+        {
+            "$push": {"photo_gallery": photo_data.photo_url},
+            "$set": {"updated_at": datetime.now(timezone.utc)}
+        }
+    )
+    
+    return {"message": "Photo added to gallery", "photo_url": photo_data.photo_url}
+
+@app.delete("/api/persons/{person_id}/photos")
+async def remove_photo_from_gallery(
+    person_id: str,
+    photo_url: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Remove photo from person's gallery (Admin or Editor only)"""
+    db = get_db()
+    
+    person = await db.persons.find_one({"_id": ObjectId(person_id)})
+    if not person:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Person not found"
+        )
+    
+    # Check permission
+    role = await get_user_role_in_family(current_user["_id"], str(person["family_id"]))
+    if role not in [FamilyRole.ADMIN, FamilyRole.EDITOR]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin or Editor role required"
+        )
+    
+    # Remove photo from gallery
+    await db.persons.update_one(
+        {"_id": ObjectId(person_id)},
+        {
+            "$pull": {"photo_gallery": photo_url},
+            "$set": {"updated_at": datetime.now(timezone.utc)}
+        }
+    )
+    
+    return {"message": "Photo removed from gallery"}
+
+@app.get("/api/persons/{person_id}/photos")
+async def get_person_photos(
+    person_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get all photos from person's gallery"""
+    db = get_db()
+    
+    person = await db.persons.find_one({"_id": ObjectId(person_id)})
+    if not person:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Person not found"
+        )
+    
+    # Check if user has access to family
+    await check_family_membership(current_user["_id"], str(person["family_id"]))
+    
+    return {
+        "person_id": person_id,
+        "photos": person.get("photo_gallery", [])
+    }
+
+# ============================================
+# RELATIONSHIP MAPPING ENDPOINTS
+# ============================================
+
+class RelationshipAdd(BaseModel):
+    relationship_type: str  # "father", "mother", "spouse", "child"
+    related_person_id: str
+
+@app.post("/api/persons/{person_id}/relationships")
+async def add_relationship(
+    person_id: str,
+    relationship_data: RelationshipAdd,
+    current_user: dict = Depends(get_current_user)
+):
+    """Add relationship between persons (Admin or Editor only)"""
+    db = get_db()
+    
+    person = await db.persons.find_one({"_id": ObjectId(person_id)})
+    if not person:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Person not found"
+        )
+    
+    related_person = await db.persons.find_one({"_id": ObjectId(relationship_data.related_person_id)})
+    if not related_person:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Related person not found"
+        )
+    
+    # Check permission
+    role = await get_user_role_in_family(current_user["_id"], str(person["family_id"]))
+    if role not in [FamilyRole.ADMIN, FamilyRole.EDITOR]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin or Editor role required"
+        )
+    
+    # Add relationship based on type
+    update_query = {"$set": {"updated_at": datetime.now(timezone.utc)}}
+    
+    if relationship_data.relationship_type == "father":
+        update_query["$set"]["father_id"] = relationship_data.related_person_id
+    elif relationship_data.relationship_type == "mother":
+        update_query["$set"]["mother_id"] = relationship_data.related_person_id
+    elif relationship_data.relationship_type == "spouse":
+        update_query["$addToSet"] = {"spouse_ids": relationship_data.related_person_id}
+        # Add reciprocal relationship
+        await db.persons.update_one(
+            {"_id": ObjectId(relationship_data.related_person_id)},
+            {"$addToSet": {"spouse_ids": person_id}}
+        )
+    elif relationship_data.relationship_type == "child":
+        # Set this person as parent of the related person
+        if person.get("gender") == "male":
+            await db.persons.update_one(
+                {"_id": ObjectId(relationship_data.related_person_id)},
+                {"$set": {"father_id": person_id, "updated_at": datetime.now(timezone.utc)}}
+            )
+        elif person.get("gender") == "female":
+            await db.persons.update_one(
+                {"_id": ObjectId(relationship_data.related_person_id)},
+                {"$set": {"mother_id": person_id, "updated_at": datetime.now(timezone.utc)}}
+            )
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid relationship type. Use: father, mother, spouse, or child"
+        )
+    
+    await db.persons.update_one({"_id": ObjectId(person_id)}, update_query)
+    
+    return {
+        "message": f"{relationship_data.relationship_type.title()} relationship added",
+        "person_id": person_id,
+        "related_person_id": relationship_data.related_person_id
+    }
+
+@app.get("/api/persons/{person_id}/relationships")
+async def get_person_relationships(
+    person_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get all relationships for a person"""
+    db = get_db()
+    
+    person = await db.persons.find_one({"_id": ObjectId(person_id)})
+    if not person:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Person not found"
+        )
+    
+    # Check access
+    await check_family_membership(current_user["_id"], str(person["family_id"]))
+    
+    relationships = {
+        "person_id": person_id,
+        "father": None,
+        "mother": None,
+        "spouses": [],
+        "children": []
+    }
+    
+    # Get father
+    if person.get("father_id"):
+        try:
+            father = await db.persons.find_one({"_id": ObjectId(person["father_id"])})
+            if father:
+                relationships["father"] = {
+                    "id": person["father_id"],
+                    "name": f"{father['first_name']} {father['last_name']}"
+                }
+        except:
+            pass
+    
+    # Get mother
+    if person.get("mother_id"):
+        try:
+            mother = await db.persons.find_one({"_id": ObjectId(person["mother_id"])})
+            if mother:
+                relationships["mother"] = {
+                    "id": person["mother_id"],
+                    "name": f"{mother['first_name']} {mother['last_name']}"
+                }
+        except:
+            pass
+    
+    # Get spouses
+    if person.get("spouse_ids"):
+        for spouse_id in person["spouse_ids"]:
+            spouse = await db.persons.find_one({"_id": ObjectId(spouse_id)})
+            if spouse:
+                relationships["spouses"].append({
+                    "id": str(spouse["_id"]),
+                    "name": f"{spouse['first_name']} {spouse['last_name']}"
+                })
+    
+    # Get children (persons who have this person as parent)
+    children = await db.persons.find({
+        "$or": [
+            {"father_id": person_id},
+            {"mother_id": person_id}
+        ]
+    }).to_list(100)
+    
+    for child in children:
+        relationships["children"].append({
+            "id": str(child["_id"]),
+            "name": f"{child['first_name']} {child['last_name']}"
+        })
+    
+    return relationships
+
+@app.get("/api/families/{family_id}/tree")
+async def get_family_tree_structure(
+    family_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get complete family tree structure with relationships"""
+    db = get_db()
+    
+    # Check access
+    await check_family_membership(current_user["_id"], family_id)
+    
+    # Get all persons in family
+    persons = await db.persons.find({"family_id": ObjectId(family_id)}).to_list(1000)
+    
+    tree_data = []
+    for person in persons:
+        tree_data.append({
+            "id": str(person["_id"]),
+            "first_name": person["first_name"],
+            "last_name": person["last_name"],
+            "gender": person.get("gender"),
+            "birth_date": person.get("birth_date"),
+            "is_deceased": person.get("is_deceased", False),
+            "father_id": person.get("father_id"),
+            "mother_id": person.get("mother_id"),
+            "spouse_ids": person.get("spouse_ids", []),
+            "generation_level": person.get("generation_level", 0)
+        })
+    
+    return {
+        "family_id": family_id,
+        "total_persons": len(tree_data),
+        "persons": tree_data
+    }
+
+# ============================================
 # RUN APP
 # ============================================
 

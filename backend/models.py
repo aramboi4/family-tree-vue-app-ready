@@ -155,6 +155,10 @@ class PersonCreate(BaseModel):
     profile_image_url: Optional[str] = None
     facebook_url: Optional[str] = None
     is_deceased: bool = False
+    photo_gallery: Optional[List[str]] = []
+    father_id: Optional[str] = None  # Reference to father person
+    mother_id: Optional[str] = None  # Reference to mother person
+    spouse_ids: Optional[List[str]] = []  # List of spouse person IDs
 
 class PersonUpdate(BaseModel):
     first_name: Optional[str] = None
@@ -169,6 +173,10 @@ class PersonUpdate(BaseModel):
     profile_image_url: Optional[str] = None
     facebook_url: Optional[str] = None
     is_deceased: Optional[bool] = None
+    photo_gallery: Optional[List[str]] = None
+    father_id: Optional[str] = None
+    mother_id: Optional[str] = None
+    spouse_ids: Optional[List[str]] = None
 
 class PersonResponse(BaseModel):
     id: str = Field(alias="_id")
@@ -186,6 +194,7 @@ class PersonResponse(BaseModel):
     facebook_url: Optional[str] = None
     is_deceased: bool = False
     generation_level: int = 0
+    photo_gallery: Optional[List[str]] = []
     created_at: datetime
     updated_at: datetime
     
