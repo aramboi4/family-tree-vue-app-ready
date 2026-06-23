@@ -19,6 +19,17 @@ import uuid
 from config import settings
 from database import connect_db, disconnect_db, get_db
 from models import *
+from rbac import (
+    check_family_membership,
+    check_admin_role,
+    check_admin_or_editor_role,
+    can_invite_role,
+    check_admin_limit,
+    check_can_remove_admin,
+    validate_admin_addition,
+    Permissions,
+    get_user_role_in_family
+)
 from auth import (
     hash_password,
     verify_password,
@@ -580,6 +591,210 @@ async def delete_family(family_id: str, current_user: dict = Depends(get_current
     return None
 
 # ============================================
+
+
+# ============================================
+# MEMBER MANAGEMENT ENDPOINTS
+# ============================================
+
+@app.get("/api/families/{family_id}/members")
+async def list_family_members(family_id: str, current_user: dict = Depends(get_current_user)):
+    """List all members of a family tree"""
+    db = get_db()
+    
+    # Check if user is a member
+    await check_family_membership(current_user["_id"], family_id)
+    
+    # Get all members
+    members = await db.family_members.find({"family_id": ObjectId(family_id)}).to_list(100)
+    
+    # Enrich with user data
+    result = []
+    for member in members:
+        user = await db.users.find_one({"_id": member["user_id"]}, {"password_hash": 0})
+        result.append({
+            "_id": str(member["_id"]),
+            "family_id": str(member["family_id"]),
+            "user_id": str(member["user_id"]),
+            "role": member["role"],
+            "joined_at": member["joined_at"],
+            "user_email": user.get("email") if user else None,
+            "user_name": user.get("full_name") if user else None
+        })
+    
+    return result
+
+@app.post("/api/families/{family_id}/members/invite", status_code=status.HTTP_201_CREATED)
+async def invite_member(
+    family_id: str,
+    invite_data: MemberInvite,
+    current_user: dict = Depends(get_current_user)
+):
+    """Invite a member to the family tree"""
+    db = get_db()
+    
+    # Get inviter's role
+    inviter_role = await get_user_role_in_family(current_user["_id"], family_id)
+    if not inviter_role:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You are not a member of this family"
+        )
+    
+    # Check if inviter can invite this role
+    if not await can_invite_role(inviter_role, invite_data.role):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"You cannot invite {invite_data.role} members"
+        )
+    
+    # If inviting admin, check admin limit
+    if invite_data.role == FamilyRole.ADMIN:
+        await validate_admin_addition(family_id)
+    
+    # Check if user exists
+    invitee = await db.users.find_one({"email": invite_data.email.lower()})
+    if not invitee:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User with this email not found"
+        )
+    
+    # Check if already a member
+    existing_member = await db.family_members.find_one({
+        "family_id": ObjectId(family_id),
+        "user_id": invitee["_id"]
+    })
+    if existing_member:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User is already a member of this family"
+        )
+    
+    # Add member
+    member_id = ObjectId()
+    await db.family_members.insert_one({
+        "_id": member_id,
+        "family_id": ObjectId(family_id),
+        "user_id": invitee["_id"],
+        "role": invite_data.role,
+        "joined_at": datetime.now(timezone.utc)
+    })
+    
+    return {
+        "_id": str(member_id),
+        "family_id": family_id,
+        "user_id": str(invitee["_id"]),
+        "role": invite_data.role,
+        "joined_at": datetime.now(timezone.utc),
+        "user_email": invitee["email"],
+        "user_name": invitee.get("full_name")
+    }
+
+@app.put("/api/families/{family_id}/members/{member_id}")
+async def update_member_role(
+    family_id: str,
+    member_id: str,
+    update_data: MemberUpdate,
+    current_user: dict = Depends(get_current_user)
+):
+    """Update a member's role (Admin only)"""
+    db = get_db()
+    
+    # Only admins can change roles
+    await check_admin_role(current_user["_id"], family_id)
+    
+    # Get the member
+    member = await db.family_members.find_one({"_id": ObjectId(member_id)})
+    if not member:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Member not found"
+        )
+    
+    # If promoting to admin, check limit
+    if update_data.role == FamilyRole.ADMIN and member["role"] != FamilyRole.ADMIN:
+        await validate_admin_addition(family_id)
+    
+    # If demoting from admin, check if we can remove an admin
+    if member["role"] == FamilyRole.ADMIN and update_data.role != FamilyRole.ADMIN:
+        if not await check_can_remove_admin(family_id):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot demote the last admin"
+            )
+    
+    # Update role
+    await db.family_members.update_one(
+        {"_id": ObjectId(member_id)},
+        {"$set": {"role": update_data.role}}
+    )
+    
+    # Return updated member
+    updated_member = await db.family_members.find_one({"_id": ObjectId(member_id)})
+    user = await db.users.find_one({"_id": updated_member["user_id"]}, {"password_hash": 0})
+    
+    return {
+        "_id": str(updated_member["_id"]),
+        "family_id": str(updated_member["family_id"]),
+        "user_id": str(updated_member["user_id"]),
+        "role": updated_member["role"],
+        "joined_at": updated_member["joined_at"],
+        "user_email": user.get("email") if user else None,
+        "user_name": user.get("full_name") if user else None
+    }
+
+@app.delete("/api/families/{family_id}/members/{member_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_member(
+    family_id: str,
+    member_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Remove a member from the family tree (Admin only)"""
+    db = get_db()
+    
+    # Only admins can remove members
+    await check_admin_role(current_user["_id"], family_id)
+    
+    # Get the member
+    member = await db.family_members.find_one({"_id": ObjectId(member_id)})
+    if not member:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Member not found"
+        )
+    
+    # Cannot remove the last admin
+    if member["role"] == FamilyRole.ADMIN:
+        if not await check_can_remove_admin(family_id):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot remove the last admin"
+            )
+    
+    # Remove member
+    await db.family_members.delete_one({"_id": ObjectId(member_id)})
+    
+    return None
+
+@app.get("/api/families/{family_id}/my-role")
+async def get_my_role(family_id: str, current_user: dict = Depends(get_current_user)):
+    """Get current user's role and permissions in a family"""
+    role = await get_user_role_in_family(current_user["_id"], family_id)
+    
+    if not role:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not a member of this family"
+        )
+    
+    permissions = Permissions.get_permissions(role)
+    
+    return {
+        "role": role,
+        "permissions": permissions
+    }
+
 # PERSON ENDPOINTS
 # ============================================
 

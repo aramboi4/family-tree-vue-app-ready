@@ -174,3 +174,29 @@ class TicketResponse(BaseModel):
     
     class Config:
         populate_by_name = True
+
+
+
+# ============================================
+# MEMBER MANAGEMENT MODELS
+# ============================================
+
+class MemberInvite(BaseModel):
+    family_id: str
+    email: EmailStr
+    role: FamilyRole
+
+class MemberUpdate(BaseModel):
+    role: FamilyRole
+
+class MemberResponse(BaseModel):
+    id: str = Field(alias="_id")
+    family_id: str
+    user_id: str
+    role: FamilyRole
+    joined_at: datetime
+    user_email: Optional[str] = None
+    user_name: Optional[str] = None
+    
+    class Config:
+        populate_by_name = True
