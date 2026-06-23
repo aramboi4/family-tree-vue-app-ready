@@ -86,3 +86,6 @@ credentials.json
 
 # Note: .env files are intentionally tracked for deployment
 # Ensure no sensitive data in .env files committed to public repos
+.env
+.env.*
+*.env
