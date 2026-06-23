@@ -12,5 +12,12 @@ export default defineConfig({
   server: {
     port: 3000,
     host: '0.0.0.0',
+    allowedHosts: [
+      'localhost',
+      '127.0.0.1',
+      'family-tree-vue.cluster-10.preview.emergentcf.cloud',
+      '.preview.emergentcf.cloud',
+      '.fly.dev'
+    ],
   },
 })
