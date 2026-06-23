@@ -1,0 +1,25 @@
+{
+  "name": "family-tree-app",
+  "version": "1.0.0",
+  "description": "Family Tree SaaS Application - WordPress to Vue.js Migration",
+  "main": "index.js",
+  "scripts": {
+    "build:production": "node family-tree-starter/scripts/build.js",
+    "dev:backend": "cd family-tree-starter/backend && uvicorn app.main:app --reload --port 8001",
+    "dev:frontend": "cd family-tree-starter/frontend && npm run dev",
+    "install:all": "cd family-tree-starter/frontend && npm install && cd ../backend && pip install -r requirements.txt",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "family-tree",
+    "genealogy",
+    "vue",
+    "fastapi",
+    "saas"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "fs-extra": "^11.1.1"
+  }
+}
