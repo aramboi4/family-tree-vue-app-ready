@@ -26,6 +26,24 @@ class SubscriptionPlan(str, Enum):
     BASIC = "basic"
     PREMIUM = "premium"
 
+class SubscriptionStatus(str, Enum):
+    ACTIVE = "active"
+    EXPIRED = "expired"
+    CANCELLED = "cancelled"
+
+# Plan configurations
+PLAN_LIMITS = {
+    "free": 50,
+    "basic": 200,
+    "premium": 1000
+}
+
+PLAN_PRICES = {
+    "free": 0,
+    "basic": 499,  # PHP or your currency
+    "premium": 999
+}
+
 # ============================================
 # SUPPORT TICKET MODELS
 # ============================================
@@ -223,4 +241,34 @@ class MemberResponse(BaseModel):
     user_name: Optional[str] = None
     
     class Config:
+
+
+# ============================================
+# SUBSCRIPTION MODELS
+# ============================================
+
+class SubscriptionCreate(BaseModel):
+    family_id: str
+    plan: SubscriptionPlan
+    payment_method: str  # "gcash", "maya", "instapay"
+    payment_reference: str
+
+class SubscriptionResponse(BaseModel):
+    id: str = Field(alias="_id")
+    family_id: str
+    plan: SubscriptionPlan
+    status: SubscriptionStatus
+    start_date: datetime
+    end_date: Optional[datetime] = None
+    auto_renew: bool = False
+    ticket_reward_slots: int = 0
+    
+    class Config:
+        populate_by_name = True
+
+class PlanUpgrade(BaseModel):
+    new_plan: SubscriptionPlan
+    payment_method: str
+    payment_reference: str
+
         populate_by_name = True
