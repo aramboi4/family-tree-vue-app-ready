@@ -13,10 +13,12 @@
     "@capacitor/cli": "6.1.2",
     "@capacitor/core": "6.1.2",
     "@capacitor/ios": "6.1.2",
+    "@interactjs/interactjs": "^1.10.27",
     "axios": "^1.6.0",
     "pinia": "^2.1.7",
     "vue": "^3.4.0",
-    "vue-router": "^4.2.5"
+    "vue-router": "^4.2.5",
+    "vue3-draggable-resizable": "^1.6.5"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.0.0",

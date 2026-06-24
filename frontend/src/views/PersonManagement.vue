@@ -1,6 +1,6 @@
 <template>
   <div class="min-h-screen bg-gray-50 py-8">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="max-w-full mx-auto px-4 sm:px-6 lg:px-8">
       <!-- Header -->
       <div class="mb-8">
         <div class="flex items-center justify-between">
@@ -8,13 +8,36 @@
             <h1 class="text-3xl font-bold text-gray-900">Family Members</h1>
             <p class="mt-2 text-gray-600">{{ familyName }}</p>
           </div>
-          <button
-            v-if="canEdit"
-            @click="showAddModal = true"
-            class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-medium"
-          >
-            + Add Person
-          </button>
+          <div class="flex items-center gap-4">
+            <!-- View Toggle -->
+            <div class="bg-white rounded-lg shadow p-1 flex">
+              <button
+                @click="viewMode = 'grid'"
+                :class="[
+                  'px-4 py-2 rounded text-sm font-medium transition-colors',
+                  viewMode === 'grid' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:text-gray-900'
+                ]"
+              >
+                📋 Grid
+              </button>
+              <button
+                @click="viewMode = 'tree'"
+                :class="[
+                  'px-4 py-2 rounded text-sm font-medium transition-colors',
+                  viewMode === 'tree' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:text-gray-900'
+                ]"
+              >
+                🌳 Tree
+              </button>
+            </div>
+            <button
+              v-if="canEdit"
+              @click="showAddModal = true"
+              class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-medium"
+            >
+              + Add Person
+            </button>
+          </div>
         </div>
       </div>
 
@@ -23,7 +46,16 @@
         <p class="text-gray-500">Loading family members...</p>
       </div>
 
-      <!-- Persons List -->
+      <!-- Tree View -->
+      <div v-else-if="viewMode === 'tree'" class="bg-white rounded-lg shadow-lg p-4">
+        <FamilyTreeVisualization
+          :persons="personsWithPositions"
+          :user-role="userRole"
+          @update:persons="updatePersonPositions"
+        />
+      </div>
+
+      <!-- Grid View -->
       <div v-else-if="persons.length > 0" class="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         <div
           v-for="person in persons"
@@ -52,13 +84,20 @@
             </div>
             <div v-if="person.birth_date" class="flex items-center text-gray-600">
               <span class="w-20 font-medium">Born:</span>
-              <span>{{ person.birth_date }}</span>
+              <span>{{ person.birth_date }} ({{ calculateAge(person.birth_date) }} yrs)</span>
             </div>
-            <div v-if="person.birth_place" class="flex items-center text-gray-600">
+            <div v-if="!isViewer && person.birth_place" class="flex items-center text-gray-600">
               <span class="w-20 font-medium">Place:</span>
               <span>{{ person.birth_place }}</span>
             </div>
-            <div v-if="person.bio" class="mt-3 text-gray-600">
+            <!-- Parent information (always visible) -->
+            <div v-if="getParentNames(person).length > 0" class="mt-3 pt-3 border-t">
+              <span class="font-medium text-gray-700">Parents:</span>
+              <div v-for="parent in getParentNames(person)" :key="parent" class="text-sm text-gray-600 ml-2">
+                • {{ parent }}
+              </div>
+            </div>
+            <div v-if="!isViewer && person.bio" class="mt-3 text-gray-600">
               <p class="line-clamp-2">{{ person.bio }}</p>
             </div>
           </div>
@@ -147,6 +186,42 @@
                 type="text"
                 class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
+            </div>
+          </div>
+
+          <!-- Parent Selection -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-blue-50 rounded-lg">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Father</label>
+              <select
+                v-model="personForm.father_id"
+                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Select Father...</option>
+                <option
+                  v-for="person in malePersons"
+                  :key="person._id"
+                  :value="person._id"
+                >
+                  {{ person.first_name }} {{ person.last_name }}
+                </option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Mother</label>
+              <select
+                v-model="personForm.mother_id"
+                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Select Mother...</option>
+                <option
+                  v-for="person in femalePersons"
+                  :key="person._id"
+                  :value="person._id"
+                >
+                  {{ person.first_name }} {{ person.last_name }}
+                </option>
+              </select>
             </div>
           </div>
 
@@ -239,17 +314,17 @@
 
 <script setup>
 import { ref, onMounted, computed } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute } from 'vue-router'
 import api from '@/services/api'
+import FamilyTreeVisualization from '@/components/FamilyTreeVisualization.vue'
 
 const route = useRoute()
-const router = useRouter()
-
 const familyId = route.params.id
 const familyName = ref('')
 const persons = ref([])
 const loading = ref(true)
 const userRole = ref('')
+const viewMode = ref('grid')
 const showAddModal = ref(false)
 const editingPerson = ref(null)
 const submitting = ref(false)
@@ -265,11 +340,23 @@ const personForm = ref({
   death_date: '',
   birth_place: '',
   bio: '',
-  is_deceased: false
+  is_deceased: false,
+  father_id: '',
+  mother_id: ''
 })
 
-const canEdit = computed(() => {
-  return userRole.value === 'admin' || userRole.value === 'editor'
+const canEdit = computed(() => userRole.value === 'admin' || userRole.value === 'editor')
+const isViewer = computed(() => userRole.value === 'viewer')
+
+const malePersons = computed(() => persons.value.filter(p => p.gender === 'male'))
+const femalePersons = computed(() => persons.value.filter(p => p.gender === 'female'))
+
+const personsWithPositions = computed(() => {
+  return persons.value.map(p => ({
+    ...p,
+    x: p.x || 0,
+    y: p.y || 0
+  }))
 })
 
 onMounted(async () => {
@@ -307,6 +394,31 @@ async function loadUserRole() {
   }
 }
 
+function getParentNames(person) {
+  const names = []
+  if (person.father_id) {
+    const father = persons.value.find(p => p._id === person.father_id)
+    if (father) names.push(`Father: ${father.first_name} ${father.last_name}`)
+  }
+  if (person.mother_id) {
+    const mother = persons.value.find(p => p._id === person.mother_id)
+    if (mother) names.push(`Mother: ${mother.first_name} ${mother.last_name}`)
+  }
+  return names
+}
+
+function calculateAge(birthDate) {
+  if (!birthDate) return 0
+  const today = new Date()
+  const birth = new Date(birthDate)
+  let age = today.getFullYear() - birth.getFullYear()
+  const monthDiff = today.getMonth() - birth.getMonth()
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+    age--
+  }
+  return age
+}
+
 function editPerson(person) {
   editingPerson.value = person
   personForm.value = {
@@ -319,7 +431,9 @@ function editPerson(person) {
     death_date: person.death_date || '',
     birth_place: person.birth_place || '',
     bio: person.bio || '',
-    is_deceased: person.is_deceased || false
+    is_deceased: person.is_deceased || false,
+    father_id: person.father_id || '',
+    mother_id: person.mother_id || ''
   }
   showAddModal.value = true
 }
@@ -330,10 +444,8 @@ async function savePerson() {
 
   try {
     if (editingPerson.value) {
-      // Update existing person
       await api.put(`/api/persons/${editingPerson.value._id}`, personForm.value)
     } else {
-      // Create new person
       await api.post('/api/persons', {
         ...personForm.value,
         family_id: familyId
@@ -360,6 +472,10 @@ async function confirmDelete(person) {
   }
 }
 
+function updatePersonPositions(updatedPersons) {
+  persons.value = updatedPersons
+}
+
 function closeModal() {
   showAddModal.value = false
   editingPerson.value = null
@@ -373,7 +489,9 @@ function closeModal() {
     death_date: '',
     birth_place: '',
     bio: '',
-    is_deceased: false
+    is_deceased: false,
+    father_id: '',
+    mother_id: ''
   }
   formError.value = ''
 }
