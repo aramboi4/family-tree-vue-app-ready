@@ -41,19 +41,27 @@
               </div>
             </div>
             <div class="flex space-x-2">
-              <button class="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700">
-                + Add Person
-              </button>
+              <router-link
+                :to=\"`/families/${family._id}/persons`\"
+                class=\"px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700\"
+              >
+                Manage Family Members
+              </router-link>
             </div>
           </div>
         </div>
 
-        <!-- Family Members (Coming Soon) -->
+        <!-- Family Members Link -->
         <div class="bg-white rounded-lg shadow-lg p-6">
           <h2 class="text-xl font-bold text-gray-900 mb-4">Family Members</h2>
-          <div class="text-center py-12 text-gray-500">
-            <p>Family tree visualization and member management coming soon!</p>
-            <p class="text-sm mt-2">You can add persons and view relationships here.</p>
+          <div class="text-center py-12">
+            <p class="text-gray-600 mb-4">View and manage family tree members</p>
+            <router-link
+              :to=\"`/families/${family._id}/persons`\"
+              class=\"inline-block px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium\"
+            >
+              View Family Members
+            </router-link>
           </div>
         </div>
       </div>

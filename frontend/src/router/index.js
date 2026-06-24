@@ -44,6 +44,12 @@ const router = createRouter({
       component: () => import('@/views/FamilyDetails.vue'),
       meta: { requiresAuth: true },
     },
+    {
+      path: '/families/:id/persons',
+      name: 'PersonManagement',
+      component: () => import('@/views/PersonManagement.vue'),
+      meta: { requiresAuth: true },
+    },
   ],
 })
 
