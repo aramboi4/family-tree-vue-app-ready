@@ -21,7 +21,7 @@
 ### High-Level Overview
 ```
 ┌─────────────────┐
-│   Vue 3 SPA     │  (Frontend - Port 3000)
+│   Vue 3 SPA     │  (Frontend - Port 5173 dev / 3000 prod)
 │   + Vite        │
 │   + Pinia       │
 └────────┬────────┘
@@ -31,7 +31,7 @@
 │  FastAPI        │  (Backend - Port 8001)
 │  + Pydantic     │
 └────────┬────────┘
-         │ Motor (async)
+         │ Motor (async MongoDB driver)
          ▼
 ┌─────────────────┐
 │   MongoDB       │  (Database - Port 27017)
@@ -54,23 +54,28 @@
 
 ### Frontend
 - **Vue 3.4** - Progressive JavaScript framework
-- **Vite 5.0** - Build tool & dev server
+- **Vite 5.0** - Build tool & dev server (fast HMR)
 - **Pinia 2.1** - State management
 - **Vue Router 4.2** - Client-side routing
 - **Axios 1.6** - HTTP client
 - **Tailwind CSS 3.4** - Utility-first CSS
-- **Capacitor 6.1** - Mobile app wrapper
+- **Capacitor 6.1** - Mobile app wrapper (optional)
 
 ### Backend
 - **FastAPI 0.115** - Modern Python web framework
-- **Motor 3.6** - Async MongoDB driver
+- **Motor 3.6** - Async MongoDB driver (pymongo wrapper)
 - **Pydantic 2.12** - Data validation
 - **PyJWT 2.10** - JWT tokens
 - **Bcrypt 4.2** - Password hashing
 - **ReportLab 5.0** - PDF generation
+- **Python-dotenv 1.0** - Environment variables
 
 ### Database
-- **MongoDB** - Document-based NoSQL
+- **MongoDB 7.0+** - Document-based NoSQL database
+  - Collections instead of tables
+  - Documents (JSON-like) instead of rows
+  - No schema required (flexible structure)
+  - Automatic ObjectId for `_id` field
 
 ---
 
@@ -117,6 +122,7 @@
 │
 ├── DEPLOYMENT_GUIDE.md
 ├── DEVELOPER_GUIDE.md         # This file
+├── QUICK_SETUP.md
 └── README.md
 ```
 
@@ -124,17 +130,17 @@
 
 ## Database Schema
 
-### Collections
+### MongoDB Collections
 
 #### 1. `users`
 ```javascript
 {
-  _id: ObjectId,
-  email: String (unique),
-  password_hash: String,
-  full_name: String,
+  _id: ObjectId("507f1f77bcf86cd799439011"),
+  email: "user@example.com" (unique, indexed),
+  password_hash: "$2b$12$...",
+  full_name: "John Doe",
   role: "user" | "admin",
-  created_at: DateTime
+  created_at: ISODate("2025-01-01T00:00:00Z")
 }
 ```
 **Indexes**: `email` (unique)
@@ -142,15 +148,15 @@
 #### 2. `families`
 ```javascript
 {
-  _id: ObjectId,
-  name: String,
-  description: String,
-  created_by: ObjectId (ref: users),
-  created_at: DateTime,
-  join_code: String (unique, 8 chars),
+  _id: ObjectId("507f1f77bcf86cd799439012"),
+  name: "Smith Family",
+  description: "Our family tree",
+  created_by: ObjectId("507f1f77bcf86cd799439011"),
+  created_at: ISODate("2025-01-01T00:00:00Z"),
+  join_code: "ABC12345" (unique, 8 chars),
   subscription_plan: "free" | "basic" | "premium",
-  person_count: Number,
-  person_limit: Number
+  person_count: 10,
+  person_limit: 50
 }
 ```
 **Indexes**: `join_code` (unique)
@@ -158,11 +164,11 @@
 #### 3. `family_members`
 ```javascript
 {
-  _id: ObjectId,
-  family_id: ObjectId (ref: families),
-  user_id: ObjectId (ref: users),
+  _id: ObjectId("507f1f77bcf86cd799439013"),
+  family_id: ObjectId("507f1f77bcf86cd799439012"),
+  user_id: ObjectId("507f1f77bcf86cd799439011"),
   role: "admin" | "editor" | "viewer",
-  joined_at: DateTime
+  joined_at: ISODate("2025-01-01T00:00:00Z")
 }
 ```
 **Indexes**: Compound on (`family_id`, `user_id`)
@@ -170,60 +176,60 @@
 #### 4. `persons`
 ```javascript
 {
-  _id: ObjectId,
-  family_id: ObjectId (ref: families),
-  first_name: String,
-  middle_name: String,
-  last_name: String,
-  nickname: String,
+  _id: ObjectId("507f1f77bcf86cd799439014"),
+  family_id: ObjectId("507f1f77bcf86cd799439012"),
+  first_name: "John",
+  middle_name: "Michael",
+  last_name: "Smith",
+  nickname: "Johnny",
   gender: "male" | "female" | "other",
-  birth_date: String,
-  death_date: String,
-  birth_place: String,
-  bio: String,
-  profile_image_url: String,
-  photo_gallery: [String],         // Array of photo URLs
-  facebook_url: String,
-  is_deceased: Boolean,
-  father_id: String (ref: persons),  // Parent relationship
-  mother_id: String (ref: persons),  // Parent relationship
-  spouse_ids: [String],              // Spouse relationships
-  generation_level: Number,
-  x: Number,                         // Tree visualization position
-  y: Number,                         // Tree visualization position
-  created_at: DateTime,
-  updated_at: DateTime
+  birth_date: "1990-01-15",
+  death_date: "2050-12-31" | null,
+  birth_place: "New York, USA",
+  bio: "Biography here...",
+  profile_image_url: "https://...",
+  photo_gallery: ["https://...", "https://..."],
+  facebook_url: "https://facebook.com/...",
+  is_deceased: false,
+  father_id: "507f1f77bcf86cd799439015" | null,
+  mother_id: "507f1f77bcf86cd799439016" | null,
+  spouse_ids: ["507f1f77bcf86cd799439017"],
+  generation_level: 2,
+  x: 100,  // Tree visualization position
+  y: 200,  // Tree visualization position
+  created_at: ISODate("2025-01-01T00:00:00Z"),
+  updated_at: ISODate("2025-01-01T00:00:00Z")
 }
 ```
 
 #### 5. `support_tickets`
 ```javascript
 {
-  _id: ObjectId,
-  user_id: ObjectId (ref: users),
-  family_id: ObjectId (ref: families),
+  _id: ObjectId("507f1f77bcf86cd799439018"),
+  user_id: ObjectId("507f1f77bcf86cd799439011"),
+  family_id: ObjectId("507f1f77bcf86cd799439012"),
   ticket_type: "feature" | "bug" | "issue",
-  title: String,
-  description: String,
-  screenshot_url: String,
+  title: "Add export feature",
+  description: "Need to export family tree as PDF",
+  screenshot_url: "https://...",
   status: "pending" | "reviewing" | "approved" | "rejected" | "resolved",
   priority: "low" | "medium" | "high" | "critical",
-  reward_slots: Number (1-15),
-  is_rewarded: Boolean,
-  admin_notes: String,
-  reviewed_by: ObjectId (ref: users),
-  reviewed_at: DateTime,
-  created_at: DateTime,
-  updated_at: DateTime
+  reward_slots: 5,  // 1-15 person slots
+  is_rewarded: true,
+  admin_notes: "Great suggestion!",
+  reviewed_by: ObjectId("507f1f77bcf86cd799439011"),
+  reviewed_at: ISODate("2025-01-02T00:00:00Z"),
+  created_at: ISODate("2025-01-01T00:00:00Z"),
+  updated_at: ISODate("2025-01-02T00:00:00Z")
 }
 ```
 
 #### 6. `login_attempts`
 ```javascript
 {
-  identifier: String (IP:email),
-  failed_count: Number,
-  last_attempt: DateTime
+  identifier: "192.168.1.1:user@example.com",
+  failed_count: 3,
+  last_attempt: ISODate("2025-01-01T12:00:00Z")
 }
 ```
 **TTL Index**: Auto-expires after 15 minutes
@@ -231,13 +237,13 @@
 #### 7. `password_reset_tokens`
 ```javascript
 {
-  token: String,
-  user_id: ObjectId (ref: users),
-  expires_at: DateTime,
-  used: Boolean
+  token: "random-token-string",
+  user_id: ObjectId("507f1f77bcf86cd799439011"),
+  expires_at: ISODate("2025-01-01T13:00:00Z"),
+  used: false
 }
 ```
-**TTL Index**: `expires_at`
+**TTL Index**: `expires_at` (auto-delete expired tokens)
 
 ---
 
@@ -247,7 +253,7 @@
 - **Local**: `http://localhost:8001`
 - **Production**: `https://your-domain.com`
 
-All backend routes must have `/api` prefix for Kubernetes ingress routing.
+**Important**: All backend routes must have `/api` prefix for Kubernetes ingress routing.
 
 ### Authentication
 
@@ -266,15 +272,15 @@ Register a new user.
 **Response**:
 ```json
 {
-  "_id": "user_id",
+  "_id": "507f1f77bcf86cd799439011",
   "email": "user@example.com",
   "full_name": "John Doe",
   "role": "user",
-  "created_at": "2025-12-24T00:00:00Z"
+  "created_at": "2025-01-01T00:00:00Z"
 }
 ```
 
-**Cookies Set**: `access_token`, `refresh_token`
+**Cookies Set**: `access_token` (15 min), `refresh_token` (7 days)
 
 #### POST `/api/auth/login`
 Login user.
@@ -302,10 +308,20 @@ Get current authenticated user.
 **Response**:
 ```json
 {
-  "_id": "user_id",
+  "_id": "507f1f77bcf86cd799439011",
   "email": "user@example.com",
   "full_name": "John Doe",
   "role": "user"
+}
+```
+
+#### POST `/api/auth/logout`
+Logout and clear cookies.
+
+**Response**:
+```json
+{
+  "message": "Logged out successfully"
 }
 ```
 
@@ -329,10 +345,10 @@ Create a new family tree.
 **Response**:
 ```json
 {
-  "_id": "family_id",
+  "_id": "507f1f77bcf86cd799439012",
   "name": "Smith Family",
   "description": "Our family tree",
-  "created_by": "user_id",
+  "created_by": "507f1f77bcf86cd799439011",
   "join_code": "ABC12345",
   "subscription_plan": "free",
   "person_count": 0,
@@ -341,9 +357,21 @@ Create a new family tree.
 ```
 
 **Automatic Actions**:
-- Creates family record
+- Creates family record in MongoDB
 - Adds creator as Admin member
 - Generates unique 8-char join code
+
+#### GET `/api/families`
+List all families the user is a member of.
+
+#### GET `/api/families/{family_id}`
+Get family details.
+
+#### PUT `/api/families/{family_id}`
+Update family details (Admin or Editor only).
+
+#### DELETE `/api/families/{family_id}`
+Delete family tree (Admin only).
 
 ---
 
@@ -357,19 +385,17 @@ Add a new person to family tree.
 **Request**:
 ```json
 {
-  "family_id": "family_id",
+  "family_id": "507f1f77bcf86cd799439012",
   "first_name": "John",
   "last_name": "Smith",
   "middle_name": "Michael",
   "gender": "male",
   "birth_date": "1990-01-15",
-  "father_id": "father_person_id",
-  "mother_id": "mother_person_id",
+  "father_id": "507f1f77bcf86cd799439015",
+  "mother_id": "507f1f77bcf86cd799439016",
   "bio": "Biography here"
 }
 ```
-
-**Response**: Person object with all fields
 
 **Key Fields**:
 - `father_id`, `mother_id`: For parent relationships (used in PDF & tree visualization)
@@ -391,7 +417,7 @@ Invite a user to family with role.
 **Request**:
 ```json
 {
-  "family_id": "family_id",
+  "family_id": "507f1f77bcf86cd799439012",
   "email": "invitee@example.com",
   "role": "editor"
 }
@@ -529,166 +555,6 @@ const canEdit = computed(() => {
 </button>
 ```
 
-### RBAC Functions Reference
-
-**File**: `/app/backend/rbac.py`
-
-```python
-# Check if user is family member
-await check_family_membership(user_id, family_id)
-
-# Check if user is admin
-await check_admin_role(user_id, family_id)
-
-# Check if admin or editor
-await check_admin_or_editor_role(user_id, family_id)
-
-# Check if can invite role
-can_invite = await can_invite_role(inviter_role, invitee_role)
-
-# Check admin limit (max 5)
-admin_count = await check_admin_limit(family_id)
-
-# Validate admin addition
-await validate_admin_addition(family_id)  # Raises error if >= 5
-
-# Get permissions for role
-permissions = Permissions.get_permissions(role)
-# Returns: { "can_update_family": True, "can_delete_family": False, ... }
-```
-
----
-
-## Adding New Features
-
-### 1. Adding a New API Endpoint
-
-**Step 1**: Define Pydantic Model (`/app/backend/models.py`)
-```python
-class NewFeatureCreate(BaseModel):
-    field1: str
-    field2: Optional[int] = None
-
-class NewFeatureResponse(BaseModel):
-    id: str = Field(alias="_id")
-    field1: str
-    field2: Optional[int] = None
-    created_at: datetime
-    
-    class Config:
-        populate_by_name = True
-```
-
-**Step 2**: Create Endpoint (`/app/backend/server.py`)
-```python
-@app.post("/api/new-feature", status_code=status.HTTP_201_CREATED)
-async def create_new_feature(
-    data: NewFeatureCreate,
-    current_user: dict = Depends(get_current_user)
-):
-    \"\"\"Create new feature\"\"\"
-    db = get_db()
-    
-    # RBAC check if needed
-    await check_admin_role(current_user["_id"], family_id)
-    
-    # Create document
-    new_doc = {
-        "_id": ObjectId(),
-        "user_id": ObjectId(current_user["_id"]),
-        "field1": data.field1,
-        "field2": data.field2,
-        "created_at": datetime.now(timezone.utc)
-    }
-    
-    await db.collection_name.insert_one(new_doc)
-    
-    return {
-        "_id": str(new_doc["_id"]),
-        "field1": new_doc["field1"],
-        "field2": new_doc["field2"],
-        "created_at": new_doc["created_at"]
-    }
-```
-
-**Step 3**: Update Frontend API Service (`/app/frontend/src/services/api.js` - if needed, or call directly)
-
-**Step 4**: Create Vue Component/View
-```vue
-<script setup>
-import { ref } from 'vue'
-import api from '@/services/api'
-
-const data = ref({ field1: '', field2: null })
-const loading = ref(false)
-
-async function submitData() {
-  loading.value = true
-  try {
-    const response = await api.post('/api/new-feature', data.value)
-    console.log('Created:', response.data)
-  } catch (error) {
-    console.error('Error:', error)
-  } finally {
-    loading.value = false
-  }
-}
-</script>
-```
-
----
-
-### 2. Adding a New Database Collection
-
-**Step 1**: Update Database Indexes (`/app/backend/database.py`)
-```python
-async def connect_db():
-    global client, db
-    # ... existing code ...
-    
-    # Add new indexes
-    await db.new_collection.create_index("field_name", unique=True)
-    await db.new_collection.create_index([("field1", 1), ("field2", -1)])
-```
-
-**Step 2**: Create Pydantic Models (see previous section)
-
-**Step 3**: Add CRUD Endpoints (see previous section)
-
----
-
-### 3. Adding RBAC to Existing Endpoint
-
-**Before** (No RBAC):
-```python
-@app.delete("/api/resource/{id}")
-async def delete_resource(id: str):
-    await db.resources.delete_one({"_id": ObjectId(id)})
-    return {"message": "Deleted"}
-```
-
-**After** (With RBAC):
-```python
-from rbac import check_admin_role
-
-@app.delete("/api/resource/{id}")
-async def delete_resource(
-    id: str,
-    current_user: dict = Depends(get_current_user)  # Step 1: Add dependency
-):
-    # Step 2: Get resource to find family_id
-    resource = await db.resources.find_one({"_id": ObjectId(id)})
-    if not resource:
-        raise HTTPException(404, "Not found")
-    
-    # Step 3: Check permissions
-    await check_admin_role(current_user["_id"], str(resource["family_id"]))
-    
-    # Step 4: Proceed if authorized
-    await db.resources.delete_one({"_id": ObjectId(id)})
-    return {"message": "Deleted"}
-```
-
 ---
 
 ## Code Patterns & Best Practices
@@ -703,10 +569,7 @@ return person
 
 **✅ Correct**:
 ```python
-# Always exclude _id or convert to string
-person = await db.persons.find_one({"_id": ObjectId(person_id)}, {"_id": 0})
-
-# Or convert to string in response
+# Always convert ObjectId to string
 return {
     "_id": str(person["_id"]),
     "name": person["name"]
@@ -745,77 +608,39 @@ mongo_url = os.environ.get("MONGO_URL", settings.MONGO_URL)
 jwt_secret = os.environ.get("JWT_SECRET", settings.JWT_SECRET)
 ```
 
-### 4. API Error Handling
+### 4. MongoDB Queries
 
-**Backend**:
+**Find one document**:
 ```python
-from fastapi import HTTPException, status
-
-# Use appropriate status codes
-raise HTTPException(
-    status_code=status.HTTP_404_NOT_FOUND,
-    detail="Resource not found"
-)
-
-# Provide helpful error messages
-raise HTTPException(
-    status_code=status.HTTP_400_BAD_REQUEST,
-    detail="Email already registered"
-)
+user = await db.users.find_one({"email": "user@example.com"})
 ```
 
-**Frontend**:
-```javascript
-try {
-  const response = await api.post('/api/endpoint', data)
-} catch (error) {
-  const message = error.response?.data?.detail || 'Something went wrong'
-  console.error('Error:', message)
-  // Show to user
+**Find multiple documents**:
+```python
+users = await db.users.find({"role": "admin"}).to_list(100)
+```
+
+**Insert document**:
+```python
+new_user = {
+    "_id": ObjectId(),
+    "email": "user@example.com",
+    "created_at": datetime.now(timezone.utc)
 }
+await db.users.insert_one(new_user)
 ```
 
-### 5. Vue Composables Pattern
-
-**Creating a Composable** (`/app/frontend/src/composables/useFamily.js`):
-```javascript
-import { ref } from 'vue'
-import api from '@/services/api'
-
-export function useFamily() {
-  const families = ref([])
-  const loading = ref(false)
-  
-  async function loadFamilies() {
-    loading.value = true
-    try {
-      const response = await api.get('/api/families')
-      families.value = response.data
-    } catch (error) {
-      console.error('Failed to load families:', error)
-    } finally {
-      loading.value = false
-    }
-  }
-  
-  return {
-    families,
-    loading,
-    loadFamilies
-  }
-}
+**Update document**:
+```python
+await db.users.update_one(
+    {"_id": ObjectId(user_id)},
+    {"$set": {"full_name": "New Name"}}
+)
 ```
 
-**Using in Component**:
-```vue
-<script setup>
-import { onMounted } from 'vue'
-import { useFamily } from '@/composables/useFamily'
-
-const { families, loading, loadFamilies } = useFamily()
-
-onMounted(loadFamilies)
-</script>
+**Delete document**:
+```python
+await db.users.delete_one({"_id": ObjectId(user_id)})
 ```
 
 ---
@@ -838,40 +663,38 @@ curl -b cookies.txt http://localhost:8001/api/auth/me
 **Test CRUD Operations**:
 ```bash
 # Create family
-FAMILY_ID=$(curl -b cookies.txt -s -X POST http://localhost:8001/api/families \
+curl -b cookies.txt -X POST http://localhost:8001/api/families \
   -H "Content-Type: application/json" \
-  -d '{"name":"Test Family","description":"Test"}' \
-  | python3 -c "import sys,json; print(json.load(sys.stdin)['_id'])")
+  -d '{"name":"Test Family","description":"Test"}'
 
 # List families
 curl -b cookies.txt http://localhost:8001/api/families
-
-# Get family
-curl -b cookies.txt http://localhost:8001/api/families/$FAMILY_ID
 ```
 
-### Frontend Testing (Manual)
+### MongoDB Testing
 
-1. **Login Flow**:
-   - Navigate to `/login`
-   - Enter credentials
-   - Verify redirect to `/dashboard`
-   - Check cookies in DevTools
+```bash
+# Open MongoDB shell
+mongosh
 
-2. **RBAC Testing**:
-   - Login as Admin
-   - Create family
-   - Invite Editor
-   - Logout and login as Editor
-   - Verify Editor can add persons but not delete family
-   - Login as Viewer
-   - Verify Viewer sees limited fields
+# Use database
+use family_tree_db
 
-3. **Person Management**:
-   - Add person with parents
-   - Switch to Tree view
-   - Verify relationships show correctly
-   - Export PDF and check parent relationships
+# List collections
+show collections
+
+# View users
+db.users.find().pretty()
+
+# View specific user
+db.users.findOne({email: "admin@familytree.com"})
+
+# Count documents
+db.users.countDocuments()
+
+# Exit
+exit
+```
 
 ---
 
@@ -882,6 +705,9 @@ curl -b cookies.txt http://localhost:8001/api/families/$FAMILY_ID
 **Backend** (`.env`):
 ```env
 MONGO_URL="mongodb://localhost:27017"
+# or MongoDB Atlas:
+# MONGO_URL="mongodb+srv://username:password@cluster.mongodb.net/?retryWrites=true&w=majority"
+
 DB_NAME="family_tree_db"
 JWT_SECRET="[Generate 64-char random string]"
 ADMIN_EMAIL="admin@yourdomain.com"
@@ -911,34 +737,6 @@ yarn install
 yarn build  # Creates /dist folder
 ```
 
-### Docker Deployment
-
-**Backend Dockerfile**:
-```dockerfile
-FROM python:3.11-slim
-WORKDIR /app
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-COPY . .
-EXPOSE 8001
-CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8001"]
-```
-
-**Frontend Dockerfile**:
-```dockerfile
-FROM node:18-alpine AS builder
-WORKDIR /app
-COPY package.json yarn.lock ./
-RUN yarn install --frozen-lockfile
-COPY . .
-RUN yarn build
-
-FROM nginx:alpine
-COPY --from=builder /app/dist /usr/share/nginx/html
-EXPOSE 80
-CMD ["nginx", "-g", "daemon off;"]
-```
-
 ---
 
 ## Troubleshooting
@@ -947,7 +745,7 @@ CMD ["nginx", "-g", "daemon off;"]
 
 #### 1. "MongoServerError: E11000 duplicate key error"
 
-**Cause**: Trying to insert document with duplicate unique field
+**Cause**: Trying to insert document with duplicate unique field (email or join_code)
 
 **Solution**:
 ```python
@@ -957,7 +755,22 @@ if existing:
     raise HTTPException(400, "Email already registered")
 ```
 
-#### 2. "401 Unauthorized" on `/api/auth/me`
+#### 2. "Connection refused" when connecting to MongoDB
+
+**Cause**: MongoDB is not running
+
+**Solution**:
+```bash
+# Check if MongoDB is running
+mongosh
+
+# If fails, start MongoDB:
+# Windows: services.msc → MongoDB → Start
+# Mac: brew services start mongodb-community
+# Linux: sudo systemctl start mongod
+```
+
+#### 3. "401 Unauthorized" on `/api/auth/me`
 
 **Cause**: Cookie not being sent or token expired
 
@@ -966,7 +779,7 @@ if existing:
 - Verify cookie domain matches
 - Check token expiration
 
-#### 3. "CORS Error" in browser
+#### 4. "CORS Error" in browser
 
 **Cause**: Frontend and backend on different domains
 
@@ -981,23 +794,6 @@ app.add_middleware(
 )
 ```
 
-#### 4. "Person not showing in Tree View"
-
-**Cause**: Missing x, y coordinates
-
-**Solution**: Click "Grid" then "Tree" to trigger auto-layout
-
-#### 5. "Viewer seeing restricted fields"
-
-**Cause**: Frontend not checking `isViewer`
-
-**Solution**:
-```vue
-<div v-if="!isViewer">
-  <!-- Restricted content -->
-</div>
-```
-
 ---
 
 ## Quick Reference
@@ -1009,43 +805,13 @@ app.add_middleware(
 | Add API endpoint | `/app/backend/server.py` |
 | Add data model | `/app/backend/models.py` |
 | Add RBAC check | `/app/backend/rbac.py` |
-| Update database schema | `/app/backend/database.py` |
+| Update database indexes | `/app/backend/database.py` |
 | Add Vue page | `/app/frontend/src/views/` |
 | Add route | `/app/frontend/src/router/index.js` |
 | Add component | `/app/frontend/src/components/` |
 | Auth logic | `/app/backend/auth.py` |
 | API client config | `/app/frontend/src/services/api.js` |
 | State management | `/app/frontend/src/stores/` |
-
-### Code Snippet Templates
-
-**Add New Endpoint**:
-```python
-@app.post("/api/endpoint")
-async def endpoint_name(
-    data: ModelName,
-    current_user: dict = Depends(get_current_user)
-):
-    db = get_db()
-    # Your logic here
-    return {"result": "success"}
-```
-
-**Add New Vue View**:
-```vue
-<template>
-  <div>
-    <!-- Your template -->
-  </div>
-</template>
-
-<script setup>
-import { ref, onMounted } from 'vue'
-import api from '@/services/api'
-
-// Your logic here
-</script>
-```
 
 ---
 
@@ -1054,11 +820,14 @@ import api from '@/services/api'
 For questions or issues:
 1. Check this guide first
 2. Review API docs at `/api/docs`
-3. Check logs in `/var/log/supervisor/`
+3. Check MongoDB: `mongosh` → `use family_tree_db` → `db.users.find()`
 4. Review test credentials in `/app/memory/test_credentials.md`
 
 ---
 
 **Version**: 1.0.0  
-**Last Updated**: December 2025  
+**Last Updated**: January 2026  
+**Database**: MongoDB (NoSQL)  
 **Maintained by**: Development Team
+
+
