@@ -51,8 +51,8 @@
               :disabled="loading"
               class="flex-1 py-3 px-4 bg-primary-600 text-white rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:bg-gray-400 disabled:cursor-not-allowed"
             >
-              <span v-if="loading">Creating...</span>
-              <span v-else">Create Family Tree</span>
+              <span v-if=loading>Creating...</span>
+              <span v-else>Create Family Tree</span>
             </button>
             <router-link
               to="/families"

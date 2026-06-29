@@ -42,8 +42,8 @@
             </div>
             <div class="flex space-x-2">
               <router-link
-                :to=\"`/families/${family._id}/persons`\"
-                class=\"px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700\"
+                :to="`/families/${family._id}/persons`"
+                class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
               >
                 Manage Family Members
               </router-link>
@@ -57,8 +57,8 @@
           <div class="text-center py-12">
             <p class="text-gray-600 mb-4">View and manage family tree members</p>
             <router-link
-              :to=\"`/families/${family._id}/persons`\"
-              class=\"inline-block px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium\"
+              :to="`/families/${family._id}/persons`"
+              class="inline-block px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium"
             >
               View Family Members
             </router-link>

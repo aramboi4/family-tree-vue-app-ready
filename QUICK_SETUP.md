@@ -117,7 +117,7 @@ CORS_ORIGINS=*
 Create a new file `frontend/.env` and add:
 
 ```env
-VITE_API_URL=
+VITE_API_URL=http://localhost:8001
 REACT_APP_BACKEND_URL=http://localhost:8001
 ```
 
